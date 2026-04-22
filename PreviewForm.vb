@@ -215,6 +215,7 @@ Public Class PreviewForm
         ' ── Canvas ────────────────────────────────────────────────────────
         _canvas = New DoubleBufferedPanel() With {.Dock = DockStyle.Fill, .BackColor = Color.FromArgb(22, 22, 22)}
         AddHandler _canvas.Paint, AddressOf Canvas_Paint
+        AddHandler _canvas.Resize, Sub(s, e) _canvas.Invalidate()
         AddHandler _canvas.MouseDown, AddressOf Canvas_MouseDown
         AddHandler _canvas.MouseMove, AddressOf Canvas_MouseMove
         AddHandler _canvas.MouseUp, AddressOf Canvas_MouseUp
@@ -346,6 +347,7 @@ Public Class PreviewForm
     ' ── Canvas paint ───────────────────────────────────────────────────────
     Private Sub Canvas_Paint(sender As Object, e As PaintEventArgs)
         Dim g = e.Graphics
+        g.Clear(_canvas.BackColor)
         g.InterpolationMode = InterpolationMode.HighQualityBicubic
         Dim r = GetImageRect()
         g.DrawImage(_bitmap, r)
