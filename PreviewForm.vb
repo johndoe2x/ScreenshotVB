@@ -49,7 +49,21 @@ Public Class PreviewForm
 
     Private ReadOnly ACTIVE_CLR As Color = Color.FromArgb(0, 122, 204)
     Private ReadOnly INACTIVE_CLR As Color = Color.FromArgb(58, 58, 58)
-    Private ReadOnly TOOLBAR_CLR As Color = Color.FromArgb(32, 32, 32)
+    Private ReadOnly TOOLBAR_CLR As Color = Color.FromArgb(28, 28, 28)
+
+    ' Segoe MDL2 Assets icons (built into Windows 10)
+    Private Const ICO_COPY   As String = ChrW(&HE8C8)
+    Private Const ICO_SAVE   As String = ChrW(&HE74E)
+    Private Const ICO_DRAG   As String = ChrW(&HE8A7)
+    Private Const ICO_FOLDER As String = ChrW(&HE8B7)
+    Private Const ICO_PIN    As String = ChrW(&HE840)
+    Private Const ICO_PINNED As String = ChrW(&HE841)
+    Private Const ICO_PEN    As String = ChrW(&HE70F)
+    Private Const ICO_ARROW  As String = ChrW(&HE8DF)
+    Private Const ICO_MOVE   As String = ChrW(&HE7C2)
+    Private Const ICO_TEXT   As String = ChrW(&HE8D2)
+    Private Const ICO_ERASE  As String = ChrW(&HE74D)
+    Private Const ICO_UNDO   As String = ChrW(&HE7A7)
 
     Public Sub New(bmp As Bitmap)
         _bitmap = bmp
@@ -67,106 +81,103 @@ Public Class PreviewForm
         scale = Math.Min(scale, 1.0)
         Dim imgW = Math.Max(520, CInt(bmp.Width * scale))
         Dim imgH = Math.Max(200, CInt(bmp.Height * scale))
-        Me.ClientSize = New Size(imgW, imgH + 50)
+        Me.ClientSize = New Size(imgW, imgH + 52)
 
         BuildUI()
         AutoSaveToTemp()
     End Sub
 
     Private Sub BuildUI()
-        ' ── Single toolbar at bottom ───────────────────────────────────────
+        Dim tips As New ToolTip()
         Dim toolbar As New Panel() With {
-            .Dock = DockStyle.Top,
-            .Height = 50,
-            .BackColor = TOOLBAR_CLR
+            .Dock = DockStyle.Top, .Height = 52, .BackColor = TOOLBAR_CLR
         }
-
-        ' Separator line at top of toolbar
-        Dim sep As New Panel() With {
-            .Dock = DockStyle.Bottom,
-            .Height = 1,
-            .BackColor = Color.FromArgb(60, 60, 60)
-        }
-        toolbar.Controls.Add(sep)
+        toolbar.Controls.Add(New Panel() With {
+            .Dock = DockStyle.Bottom, .Height = 1, .BackColor = Color.FromArgb(55, 55, 55)
+        })
 
         Dim x = 8
 
-        ' Action buttons (left group)
-        Dim bCopy = TB("Copy", x) : AddHandler bCopy.Click, AddressOf BtnCopy_Click : x += bCopy.Width + 4
-        Dim bSave = TB("Save", x) : AddHandler bSave.Click, AddressOf BtnSave_Click : x += bSave.Width + 4
-        Dim bDrag = TB("Drag", x) : AddHandler bDrag.MouseDown, AddressOf BtnDrag_MouseDown : x += bDrag.Width + 4
-        Dim bFolder = TB("Folder", x) : AddHandler bFolder.Click, AddressOf BtnOpenFolder_Click : x += bFolder.Width + 12
+        ' ── Group 1: actions ──────────────────────────────────────────────
+        Dim bCopy = IBtn(ICO_COPY, x) : tips.SetToolTip(bCopy, "Copy  (includes annotations)")
+        AddHandler bCopy.Click, AddressOf BtnCopy_Click : x += bCopy.Width + 3
 
-        ' Divider
-        toolbar.Controls.Add(Divider(x)) : x += 13
+        Dim bSave = IBtn(ICO_SAVE, x) : tips.SetToolTip(bSave, "Save as PNG / JPEG")
+        AddHandler bSave.Click, AddressOf BtnSave_Click : x += bSave.Width + 3
 
-        ' Tool buttons
-        Dim bPen = TB("Pen", x)
+        Dim bDrag = IBtn(ICO_DRAG, x) : tips.SetToolTip(bDrag, "Drag & Drop into any app")
+        AddHandler bDrag.MouseDown, AddressOf BtnDrag_MouseDown : x += bDrag.Width + 3
+
+        Dim bFolder = IBtn(ICO_FOLDER, x) : tips.SetToolTip(bFolder, "Open screenshots folder")
+        AddHandler bFolder.Click, AddressOf BtnOpenFolder_Click : x += bFolder.Width + 8
+
+        toolbar.Controls.Add(Divider(x)) : x += 12
+
+        ' ── Group 2: drawing tools ────────────────────────────────────────
+        Dim bPen = IBtn(ICO_PEN, x) : tips.SetToolTip(bPen, "Pen — freehand draw")
         _toolBtns(DrawTool.Pen) = bPen
         AddHandler bPen.Click, Sub(s, e) SetTool(DrawTool.Pen)
-        x += bPen.Width + 4
+        x += bPen.Width + 2
 
-        ' Pen color dropdown
-        Dim penMenu As New ContextMenuStrip()
-        penMenu.BackColor = Color.FromArgb(40, 40, 40)
-        penMenu.ForeColor = Color.White
-        For Each item In {("Red", Color.Red), ("Blue", Color.DodgerBlue), ("Black", Color.Black), ("Yellow", Color.Yellow), ("Green", Color.LimeGreen)}
+        ' Pen color preset dropdown
+        Dim penMenu As New ContextMenuStrip() With {.BackColor = Color.FromArgb(40, 40, 40), .ForeColor = Color.White}
+        For Each item In {("● Red", Color.Red), ("● Blue", Color.DodgerBlue), ("● Black", Color.Black), ("● Yellow", Color.Yellow), ("● Green", Color.LimeGreen)}
             Dim c = item.Item2
-            Dim mi = penMenu.Items.Add(item.Item1)
-            AddHandler CType(mi, ToolStripMenuItem).Click, Sub(s, e) SetPenColor(c)
+            Dim mi = CType(penMenu.Items.Add(item.Item1), ToolStripMenuItem)
+            mi.ForeColor = c
+            AddHandler mi.Click, Sub(s, e) SetPenColor(c)
         Next
         penMenu.Items.Add("-")
-        penMenu.Items.Add("Custom...", Nothing, Sub()
-                                                    Using cd As New ColorDialog() With {.Color = _penColor}
-                                                        If cd.ShowDialog() = DialogResult.OK Then SetPenColor(cd.Color)
-                                                    End Using
-                                                End Sub)
+        penMenu.Items.Add("Custom color...", Nothing, Sub()
+                                                          Using cd As New ColorDialog() With {.Color = _penColor}
+                                                              If cd.ShowDialog() = DialogResult.OK Then SetPenColor(cd.Color)
+                                                          End Using
+                                                      End Sub)
         Dim bDrop = New Button() With {
-            .Text = "▾", .FlatStyle = FlatStyle.Flat, .ForeColor = Color.Gray,
-            .BackColor = INACTIVE_CLR, .Size = New Size(18, 30), .Location = New Point(x, 9),
-            .Font = New Font("Segoe UI", 7)
+            .Text = ChrW(&HE70D), .Font = New Font("Segoe MDL2 Assets", 7),
+            .FlatStyle = FlatStyle.Flat, .ForeColor = Color.FromArgb(150, 150, 150),
+            .BackColor = INACTIVE_CLR, .Size = New Size(16, 38), .Location = New Point(x, 7)
         }
-        bDrop.FlatAppearance.BorderColor = Color.FromArgb(70, 70, 70)
+        bDrop.FlatAppearance.BorderColor = Color.FromArgb(65, 65, 65)
         AddHandler bDrop.Click, Sub(s, e) penMenu.Show(bDrop, New Point(0, bDrop.Height))
         x += bDrop.Width + 6
 
-        Dim bArrow = TB("Arrow", x)
+        Dim bArrow = IBtn(ICO_ARROW, x) : tips.SetToolTip(bArrow, "Arrow — click & drag")
         _toolBtns(DrawTool.Arrow) = bArrow
         AddHandler bArrow.Click, Sub(s, e) SetTool(DrawTool.Arrow)
-        x += bArrow.Width + 4
+        x += bArrow.Width + 3
 
-        Dim bMove = TB("Move", x)
+        Dim bMove = IBtn(ICO_MOVE, x) : tips.SetToolTip(bMove, "Move — drag an arrow to reposition")
         _toolBtns(DrawTool.SelectTool) = bMove
         AddHandler bMove.Click, Sub(s, e) SetTool(DrawTool.SelectTool)
-        x += bMove.Width + 4
+        x += bMove.Width + 3
 
-        Dim bText = TB("Text", x)
+        Dim bText = IBtn(ICO_TEXT, x) : tips.SetToolTip(bText, "Text — click to place, Enter to confirm")
         _toolBtns(DrawTool.Text) = bText
         AddHandler bText.Click, Sub(s, e) SetTool(DrawTool.Text)
-        x += bText.Width + 4
+        x += bText.Width + 3
 
-        Dim bErase = TB("Erase", x)
+        Dim bErase = IBtn(ICO_ERASE, x) : tips.SetToolTip(bErase, "Eraser")
         _toolBtns(DrawTool.Eraser) = bErase
         AddHandler bErase.Click, Sub(s, e) SetTool(DrawTool.Eraser)
-        x += bErase.Width + 12
+        x += bErase.Width + 8
 
-        ' Divider
-        toolbar.Controls.Add(Divider(x)) : x += 13
+        toolbar.Controls.Add(Divider(x)) : x += 12
 
-        ' Color swatch
+        ' ── Color swatch ─────────────────────────────────────────────────
         _colorSwatch = New Panel() With {
-            .Size = New Size(28, 28), .Location = New Point(x, 11),
-            .BackColor = _penColor, .BorderStyle = BorderStyle.None, .Cursor = Cursors.Hand
+            .Size = New Size(30, 30), .Location = New Point(x, 11),
+            .BackColor = Color.Transparent, .Cursor = Cursors.Hand
         }
-        ' Rounded look via Paint
+        tips.SetToolTip(_colorSwatch, "Pick color")
         AddHandler _colorSwatch.Paint, Sub(s, e2)
                                            Dim g2 = e2.Graphics
                                            g2.SmoothingMode = SmoothingMode.AntiAlias
                                            Using br As New SolidBrush(_penColor)
-                                               g2.FillEllipse(br, 1, 1, 25, 25)
+                                               g2.FillEllipse(br, 2, 2, 26, 26)
                                            End Using
-                                           Using pen As New Pen(Color.FromArgb(100, 100, 100), 1.5F)
-                                               g2.DrawEllipse(pen, 1, 1, 25, 25)
+                                           Using pn As New Pen(Color.FromArgb(110, 110, 110), 1.5F)
+                                               g2.DrawEllipse(pn, 2, 2, 26, 26)
                                            End Using
                                        End Sub
         AddHandler _colorSwatch.Click, Sub(s, e)
@@ -174,26 +185,23 @@ Public Class PreviewForm
                                                If cd.ShowDialog() = DialogResult.OK Then SetPenColor(cd.Color)
                                            End Using
                                        End Sub
-        x += 36
+        x += 38
 
-        ' S M L size buttons
-        Dim bS = SzBtn("S", x, 2) : x += bS.Width + 2
-        Dim bM = SzBtn("M", x, 4) : x += bM.Width + 2
-        Dim bL = SzBtn("L", x, 7) : x += bL.Width + 12
+        ' ── Size buttons ─────────────────────────────────────────────────
+        Dim bS = SzBtn("S", x, 2) : tips.SetToolTip(bS, "Small") : x += bS.Width + 2
+        Dim bM = SzBtn("M", x, 4) : tips.SetToolTip(bM, "Medium") : x += bM.Width + 2
+        Dim bL = SzBtn("L", x, 7) : tips.SetToolTip(bL, "Large") : x += bL.Width + 8
 
-        ' Divider
-        toolbar.Controls.Add(Divider(x)) : x += 13
+        toolbar.Controls.Add(Divider(x)) : x += 12
 
-        ' Undo
-        Dim bUndo = TB("Undo", x)
-        AddHandler bUndo.Click, AddressOf BtnUndo_Click
-        x += bUndo.Width + 4
+        ' ── Undo & Pin ───────────────────────────────────────────────────
+        Dim bUndo = IBtn(ICO_UNDO, x) : tips.SetToolTip(bUndo, "Undo")
+        AddHandler bUndo.Click, AddressOf BtnUndo_Click : x += bUndo.Width + 3
 
-        ' Pin (right-aligned feel, just after undo)
-        _btnPin = TB("Pin", x)
+        _btnPin = IBtn(ICO_PIN, x) : tips.SetToolTip(_btnPin, "Pin window on top")
         AddHandler _btnPin.Click, Sub(s, e)
                                       Me.TopMost = Not Me.TopMost
-                                      _btnPin.Text = If(Me.TopMost, "Pinned", "Pin")
+                                      _btnPin.Text = If(Me.TopMost, ICO_PINNED, ICO_PIN)
                                       _btnPin.BackColor = If(Me.TopMost, ACTIVE_CLR, INACTIVE_CLR)
                                   End Sub
 
@@ -211,25 +219,35 @@ Public Class PreviewForm
         Me.Controls.Add(_canvas)
     End Sub
 
-    Private Function TB(text As String, x As Integer, Optional w As Integer = 0) As Button
-        If w = 0 Then w = Math.Max(44, text.Length * 9 + 16)
+    ' Icon button using Segoe MDL2 Assets
+    Private Function IBtn(icon As String, x As Integer, Optional w As Integer = 38) As Button
         Dim b As New Button()
-        b.Text = text
+        b.Text = icon
+        b.Font = New Font("Segoe MDL2 Assets", 13)
         b.FlatStyle = FlatStyle.Flat
-        b.ForeColor = Color.FromArgb(220, 220, 220)
+        b.ForeColor = Color.FromArgb(210, 210, 210)
         b.BackColor = INACTIVE_CLR
-        b.FlatAppearance.BorderColor = Color.FromArgb(70, 70, 70)
-        b.FlatAppearance.MouseOverBackColor = Color.FromArgb(75, 75, 75)
-        b.Font = New Font("Segoe UI", 9)
-        b.Size = New Size(w, 30)
-        b.Location = New Point(x, 9)
+        b.FlatAppearance.BorderColor = Color.FromArgb(65, 65, 65)
+        b.FlatAppearance.MouseOverBackColor = Color.FromArgb(72, 72, 72)
+        b.Size = New Size(w, 38)
+        b.Location = New Point(x, 7)
         b.Cursor = Cursors.Hand
         Return b
     End Function
 
+    ' Size selector button (plain text, smaller)
     Private Function SzBtn(text As String, x As Integer, sz As Integer) As Button
-        Dim b = TB(text, x, 26)
+        Dim b As New Button()
+        b.Text = text
         b.Font = New Font("Segoe UI", 8, FontStyle.Bold)
+        b.FlatStyle = FlatStyle.Flat
+        b.ForeColor = Color.FromArgb(180, 180, 180)
+        b.BackColor = INACTIVE_CLR
+        b.FlatAppearance.BorderColor = Color.FromArgb(65, 65, 65)
+        b.FlatAppearance.MouseOverBackColor = Color.FromArgb(72, 72, 72)
+        b.Size = New Size(26, 38)
+        b.Location = New Point(x, 7)
+        b.Cursor = Cursors.Hand
         AddHandler b.Click, Sub(s, e) _penSize = sz
         Return b
     End Function
