@@ -282,7 +282,7 @@ Public Class PreviewForm
 
     ' ── Tool & color ───────────────────────────────────────────────────────
     Private Sub SetTool(t As DrawTool)
-        _tool = t
+        _tool = If(_tool = t, DrawTool.None, t)
         For Each kvp In _toolBtns
             kvp.Value.BackColor = If(kvp.Key = t, ACTIVE_CLR, INACTIVE_CLR)
         Next
