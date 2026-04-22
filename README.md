@@ -120,6 +120,7 @@ Some antivirus software (e.g. Avira, Windows Defender) may flag the exe on first
 - **Author:** [johndoe2x](https://github.com/johndoe2x)
 - **Inspired by:** [Shottr](https://shottr.cc/) — Mac screenshot tool
 - **Built with assistance from:** [Claude](https://claude.ai) by Anthropic
+- **App icon:** [Gnome screenshot Icon](https://icon-icons.com/authors/157-sora-meliae-andrea-soragna) by sora-meliae (Andrea Soragna) on [Icon-Icons.com](https://icon-icons.com/authors/157-sora-meliae-andrea-soragna)
 
 If you use or fork this project, a credit back to the original repo is appreciated:
 ```
