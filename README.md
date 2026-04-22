@@ -1,57 +1,80 @@
-# ScreenshotVB
+# ScreenshotVB — Screenshot Tool for Windows 10
 
-A lightweight screenshot tool for Windows 10, inspired by Shottr on Mac. Press a hotkey, drag a region, and instantly copy, save, or drag the image into any app.
+![Platform](https://img.shields.io/badge/platform-Windows%2010-blue)
+![Language](https://img.shields.io/badge/language-VB.NET-purple)
+![Framework](https://img.shields.io/badge/.NET-10.0-blueviolet)
+![License](https://img.shields.io/badge/license-MIT-green)
+![Release](https://img.shields.io/github/v/release/johndoe2x/ScreenshotVB)
+![Downloads](https://img.shields.io/github/downloads/johndoe2x/ScreenshotVB/total)
+
+A fast, lightweight **screen capture tool for Windows 10** — inspired by [Shottr](https://shottr.cc/) on Mac. Press a hotkey, drag to select a region, then instantly copy, save, or drag the screenshot into any app like WhatsApp, Discord, or Slack.
+
+> **No installation needed. Single `.exe` file. Under 400KB.**
+
+---
+
+## Why ScreenshotVB?
+
+| Feature | ScreenshotVB | Windows Snipping Tool | ShareX |
+|---|---|---|---|
+| Single exe, no install | ✅ | ❌ | ❌ |
+| Global hotkey | ✅ | ✅ | ✅ |
+| Drag & drop to any app | ✅ | ❌ | ❌ |
+| Lightweight (< 400KB) | ✅ | ✅ | ❌ |
+| No account / no cloud | ✅ | ✅ | ✅ |
 
 ---
 
 ## Features
 
-- **Ctrl+E** — trigger a screenshot from anywhere
+- **Ctrl+E** — trigger a screenshot from anywhere, anytime
 - **Region select** — click and drag to capture any part of your screen
-- **Copy** — copies the image to clipboard (works with Paint, Word, Discord, etc.)
-- **Save** — save to any folder via file dialog
+- **Copy** — copies image to clipboard (paste into Paint, Word, Discord, etc.)
+- **Save** — save as PNG/BMP/JPEG to any folder
 - **Drag & Drop** — drag the screenshot directly into WhatsApp, Discord, Slack, or any folder
-- **Open Folder** — opens the temp screenshots folder in Explorer
-- Auto-saves every screenshot to `%LocalAppData%\Temp\ScreenshotApp\`
+- **Open Folder** — opens the auto-save folder in Explorer
+- **Auto-save** — every screenshot is saved automatically to `%LocalAppData%\Temp\ScreenshotApp\`
 
 ---
 
-## Requirements
+## Download
 
+**[Download ScreenshotVB.exe from Releases](https://github.com/johndoe2x/ScreenshotVB/releases/latest)**
+
+### Requirements
 - Windows 10 (x64)
-- [.NET 10 Runtime](https://dotnet.microsoft.com/en-us/download/dotnet/10.0) — download **Windows x64 Desktop Runtime**
-
----
-
-## Download & Run
-
-1. Download `ScreenshotVB.exe` from [Releases](https://github.com/johndoe2x/ScreenshotVB/releases)
-2. Run it — no installer needed
-3. A tray icon appears in the system tray (bottom right)
-4. Press **Ctrl+E** anywhere to take a screenshot
-
-> **Antivirus note:** Some antivirus software (e.g. Avira) may flag the exe on first run. This is a false positive — add the exe to your exclusions list.
+- [.NET 10 Desktop Runtime](https://dotnet.microsoft.com/en-us/download/dotnet/10.0) — free, from Microsoft
 
 ---
 
 ## How to Use
 
 ### Taking a Screenshot
-1. Press **Ctrl+E**
-2. Your screen dims — click and drag to select the region you want
-3. Release the mouse — the preview window opens
+1. Run `ScreenshotVB.exe` — a tray icon appears in the bottom-right system tray
+2. Press **Ctrl+E** from anywhere
+3. Screen dims — click and drag to select the region you want
+4. Release — the preview window opens instantly
 
-### Preview Window Buttons
+### Preview Window
 
 | Button | What it does |
 |--------|-------------|
 | **Copy** | Copies image to clipboard — paste with Ctrl+V anywhere |
-| **Save** | Opens a Save dialog to save as PNG/BMP/JPEG |
-| **Drag & Drop** | Drag this button into any app (WhatsApp, Discord, Slack, a folder) to send the image |
-| **Open Folder** | Opens the auto-save folder in Explorer |
+| **Save** | Save dialog — choose folder and format (PNG/BMP/JPEG) |
+| **Drag & Drop** | Drag into WhatsApp, Discord, Slack, email, or any folder |
+| **Open Folder** | Opens the auto-save temp folder in Explorer |
 
-### Cancelling
-- Press **Esc** during region select to cancel
+### Cancel
+- Press **Esc** during region select to cancel without capturing
+
+---
+
+## Auto-save Location
+
+Every screenshot is automatically saved to:
+```
+C:\Users\<YourName>\AppData\Local\Temp\ScreenshotApp\
+```
 
 ---
 
@@ -59,16 +82,16 @@ A lightweight screenshot tool for Windows 10, inspired by Shottr on Mac. Press a
 
 ### Prerequisites
 - [.NET 10 SDK](https://dotnet.microsoft.com/en-us/download/dotnet/10.0)
-- Visual Studio 2022 (with VB.NET / WinForms workload) or VS Code
+- Visual Studio 2022 with VB.NET / WinForms workload
 
-### Build
+### Clone & Build
 ```bash
 git clone https://github.com/johndoe2x/ScreenshotVB.git
 cd ScreenshotVB
 dotnet build
 ```
 
-### Publish (single exe)
+### Publish as single exe
 ```bash
 dotnet publish -c Release -r win-x64 --self-contained false -p:PublishSingleFile=true -o "publish"
 ```
@@ -77,30 +100,34 @@ Output: `publish\ScreenshotVB.exe`
 
 ---
 
-## Auto-save Location
+## Antivirus Note
 
-Screenshots are saved automatically to:
-```
-C:\Users\<YourName>\AppData\Local\Temp\ScreenshotApp\
-```
+Some antivirus software (e.g. Avira, Windows Defender) may flag the exe on first run. This is a **false positive** — the app only uses standard Windows APIs for screen capture and hotkeys. Add the exe to your exclusions list to avoid this.
 
 ---
 
 ## Tech Stack
 
-- Language: Visual Basic .NET
-- Framework: WinForms on .NET 10
-- Target: Windows 10 x64
+- **Language:** Visual Basic .NET
+- **Framework:** WinForms on .NET 10
+- **Target:** Windows 10 x64
+- **Size:** ~375KB (framework-dependent single file)
 
 ---
 
 ## Credits
 
 - **Author:** [johndoe2x](https://github.com/johndoe2x)
-- **Inspired by:** [Shottr](https://shottr.cc/) — a Mac screenshot tool
+- **Inspired by:** [Shottr](https://shottr.cc/) — Mac screenshot tool
 - **Built with assistance from:** [Claude](https://claude.ai) by Anthropic
 
 If you use or fork this project, a credit back to the original repo is appreciated:
 ```
 Based on ScreenshotVB by johndoe2x — https://github.com/johndoe2x/ScreenshotVB
 ```
+
+---
+
+## License
+
+MIT — free to use, modify, and distribute.
