@@ -52,6 +52,7 @@ Public Class PreviewForm
     Private ReadOnly TOOLBAR_CLR As Color = Color.FromArgb(28, 28, 28)
 
     ' Segoe MDL2 Assets icons (built into Windows 10)
+    Private Const ICO_NEW    As String = ChrW(&HE722)
     Private Const ICO_COPY   As String = ChrW(&HE8C8)
     Private Const ICO_SAVE   As String = ChrW(&HE74E)
     Private Const ICO_DRAG   As String = ChrW(&HE759)
@@ -99,6 +100,9 @@ Public Class PreviewForm
         Dim x = 8
 
         ' ── Group 1: actions ──────────────────────────────────────────────
+        Dim bNew = IBtn(ICO_NEW, x) : tips.SetToolTip(bNew, "New screenshot")
+        AddHandler bNew.Click, AddressOf BtnNew_Click : x += bNew.Width + 3
+
         Dim bCopy = TBtn("Copy", x) : tips.SetToolTip(bCopy, "Copy (includes annotations)")
         AddHandler bCopy.Click, AddressOf BtnCopy_Click : x += bCopy.Width + 3
 
@@ -205,7 +209,7 @@ Public Class PreviewForm
                                       _btnPin.BackColor = If(Me.TopMost, ACTIVE_CLR, INACTIVE_CLR)
                                   End Sub
 
-        toolbar.Controls.AddRange({bCopy, bSave, bDrag, bFolder, bPen, bDrop, bArrow, bMove, bText, bErase,
+        toolbar.Controls.AddRange({bNew, bCopy, bSave, bDrag, bFolder, bPen, bDrop, bArrow, bMove, bText, bErase,
                                    _colorSwatch, bS, bM, bL, bUndo, _btnPin})
 
         ' ── Canvas ────────────────────────────────────────────────────────
@@ -577,6 +581,20 @@ Public Class PreviewForm
     End Sub
 
     ' ── Action handlers ────────────────────────────────────────────────────
+    Private Sub BtnNew_Click(sender As Object, e As EventArgs)
+        Me.Hide()
+        Using selector As New SelectorForm()
+            selector.ShowDialog()
+            If selector.SelectedBitmap IsNot Nothing Then
+                Dim fresh As New PreviewForm(selector.SelectedBitmap)
+                fresh.Show()
+                Me.Close()
+            Else
+                Me.Show()
+            End If
+        End Using
+    End Sub
+
     Private Sub BtnCopy_Click(sender As Object, e As EventArgs)
         Dim merged = GetMergedBitmap()
         Dim data As New DataObject()
