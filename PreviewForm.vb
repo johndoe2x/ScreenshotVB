@@ -74,12 +74,12 @@ Public Class PreviewForm
         Me.StartPosition = FormStartPosition.CenterScreen
         Me.ShowInTaskbar = True
         Me.BackColor = Color.FromArgb(20, 20, 20)
-        Me.MinimumSize = New Size(520, 320)
+        Me.MinimumSize = New Size(780, 200)
 
         Dim maxW = 1000, maxH = 620
         Dim scale = Math.Min(CDbl(maxW) / bmp.Width, CDbl(maxH) / bmp.Height)
         scale = Math.Min(scale, 1.0)
-        Dim imgW = Math.Max(520, CInt(bmp.Width * scale))
+        Dim imgW = Math.Max(780, CInt(bmp.Width * scale))
         Dim imgH = Math.Max(200, CInt(bmp.Height * scale))
         Me.ClientSize = New Size(imgW, imgH + 52)
 
