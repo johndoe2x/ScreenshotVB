@@ -11,6 +11,10 @@ A fast, lightweight **screen capture tool for Windows 10** — inspired by [Shot
 
 > **No installation needed. Single `.exe` file. Under 400KB.**
 
+<p align="center">
+  <img src="assets/preview.png" alt="ScreenshotVB preview window" width="780"/>
+</p>
+
 ---
 
 ## Why ScreenshotVB?
@@ -30,10 +34,17 @@ A fast, lightweight **screen capture tool for Windows 10** — inspired by [Shot
 - **Ctrl+E** — trigger a screenshot from anywhere, anytime
 - **Region select** — click and drag to capture any part of your screen
 - **Copy** — copies image to clipboard (paste into Paint, Word, Discord, etc.)
-- **Save** — save as PNG/BMP/JPEG to any folder
+- **Save** — save as PNG/JPEG to any folder
 - **Drag & Drop** — drag the screenshot directly into WhatsApp, Discord, Slack, or any folder
 - **Open Folder** — opens the auto-save folder in Explorer
 - **Auto-save** — every screenshot is saved automatically to `%LocalAppData%\Temp\ScreenshotApp\`
+- **Pen** — freehand drawing with color presets and custom color picker
+- **Arrow** — click & drag to draw arrows with arrowheads
+- **Text** — click anywhere to place moveable text labels
+- **Move** — drag any arrow or text label to reposition it after placing
+- **Eraser** — erase pen strokes and drawings
+- **Undo** — step back through annotation actions
+- **Pin** — keep the preview window floating on top of all other windows
 
 ---
 
@@ -59,10 +70,18 @@ A fast, lightweight **screen capture tool for Windows 10** — inspired by [Shot
 
 | Button | What it does |
 |--------|-------------|
-| **Copy** | Copies image to clipboard — paste with Ctrl+V anywhere |
-| **Save** | Save dialog — choose folder and format (PNG/BMP/JPEG) |
+| **Copy** | Copies image to clipboard (includes annotations) |
+| **Save** | Save dialog — choose folder and format (PNG/JPEG) |
 | **Drag & Drop** | Drag into WhatsApp, Discord, Slack, email, or any folder |
-| **Open Folder** | Opens the auto-save temp folder in Explorer |
+| **Folder** | Opens the auto-save temp folder in Explorer |
+| **Pen** | Freehand drawing — right-click the dropdown for color presets |
+| **Arrow** | Click & drag to draw an arrow |
+| **Move** | Drag any arrow or text label to reposition it |
+| **Text** | Click to place a text label — press Enter to confirm, Esc to cancel |
+| **Eraser** | Erase pen strokes |
+| **S / M / L** | Set pen/arrow/text size |
+| **Undo** | Undo the last annotation action |
+| **Pin** | Keep preview window on top of all other windows |
 
 ### Cancel
 - Press **Esc** during region select to cancel without capturing
