@@ -54,7 +54,7 @@ Public Class PreviewForm
     ' Segoe MDL2 Assets icons (built into Windows 10)
     Private Const ICO_COPY   As String = ChrW(&HE8C8)
     Private Const ICO_SAVE   As String = ChrW(&HE74E)
-    Private Const ICO_DRAG   As String = ChrW(&HE8A7)
+    Private Const ICO_DRAG   As String = ChrW(&HE759)
     Private Const ICO_FOLDER As String = ChrW(&HE8B7)
     Private Const ICO_PIN    As String = ChrW(&HE840)
     Private Const ICO_PINNED As String = ChrW(&HE841)
