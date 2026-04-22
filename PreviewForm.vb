@@ -6,7 +6,6 @@ Imports System.Windows.Forms
 Public Class PreviewForm
     Inherits Form
 
-    ' ── core state ─────────────────────────────────────────────────────────
     Private _bitmap As Bitmap
     Private _annotationLayer As Bitmap
     Private _tempPath As String
@@ -18,27 +17,40 @@ Public Class PreviewForm
         Arrow
         Text
         Eraser
+        SelectTool
     End Enum
+
+    ' Arrow object for move support
+    Private Class ArrowShape
+        Public Pt1 As Point
+        Public Pt2 As Point
+        Public Color As Color
+        Public Size As Integer
+    End Class
+
+    Private _arrows As New List(Of ArrowShape)
+    Private _selectedArrow As ArrowShape = Nothing
+    Private _dragOffsetStart As Point
+    Private _dragOffsetEnd As Point
 
     Private _tool As DrawTool = DrawTool.None
     Private _penColor As Color = Color.Red
     Private _penSize As Integer = 3
     Private _drawing As Boolean = False
-    Private _startPt As Point      ' image coords
-    Private _lastPt As Point       ' image coords
-    Private _startPtPanel As Point ' panel coords (arrow live preview)
-    Private _previewPt As Point    ' panel coords (arrow live preview)
+    Private _startPt As Point
+    Private _lastPt As Point
+    Private _startPtPanel As Point
+    Private _previewPt As Point
 
-    ' ── UI refs ────────────────────────────────────────────────────────────
     Private _canvas As DoubleBufferedPanel
-    Private _btnPin As Button
     Private _colorSwatch As Panel
     Private _toolBtns As New Dictionary(Of DrawTool, Button)
+    Private _btnPin As Button
 
-    Private ReadOnly ACTIVE_CLR As Color = Color.FromArgb(0, 120, 215)
-    Private ReadOnly INACTIVE_CLR As Color = Color.FromArgb(60, 60, 65)
+    Private ReadOnly ACTIVE_CLR As Color = Color.FromArgb(0, 122, 204)
+    Private ReadOnly INACTIVE_CLR As Color = Color.FromArgb(58, 58, 58)
+    Private ReadOnly TOOLBAR_CLR As Color = Color.FromArgb(32, 32, 32)
 
-    ' ── constructor ────────────────────────────────────────────────────────
     Public Sub New(bmp As Bitmap)
         _bitmap = bmp
         _annotationLayer = New Bitmap(bmp.Width, bmp.Height, Imaging.PixelFormat.Format32bppArgb)
@@ -47,149 +59,213 @@ Public Class PreviewForm
         Me.FormBorderStyle = FormBorderStyle.Sizable
         Me.StartPosition = FormStartPosition.CenterScreen
         Me.ShowInTaskbar = True
-        Me.MinimumSize = New Size(500, 320)
+        Me.BackColor = Color.FromArgb(20, 20, 20)
+        Me.MinimumSize = New Size(520, 320)
 
-        Dim maxW = 900, maxH = 540
+        Dim maxW = 1000, maxH = 620
         Dim scale = Math.Min(CDbl(maxW) / bmp.Width, CDbl(maxH) / bmp.Height)
         scale = Math.Min(scale, 1.0)
-        Dim imgW = Math.Max(500, CInt(bmp.Width * scale))
-        Dim imgH = Math.Max(160, CInt(bmp.Height * scale))
-        Me.ClientSize = New Size(imgW, imgH + 80)
+        Dim imgW = Math.Max(520, CInt(bmp.Width * scale))
+        Dim imgH = Math.Max(200, CInt(bmp.Height * scale))
+        Me.ClientSize = New Size(imgW, imgH + 50)
 
         BuildUI()
         AutoSaveToTemp()
     End Sub
 
-    ' ── UI build ───────────────────────────────────────────────────────────
     Private Sub BuildUI()
-        ' ── Row 1: action buttons ──────────────────────────────────────────
-        Dim row1 As New Panel() With {.Dock = DockStyle.Top, .Height = 40, .BackColor = Color.FromArgb(45, 45, 48)}
+        ' ── Single toolbar at bottom ───────────────────────────────────────
+        Dim toolbar As New Panel() With {
+            .Dock = DockStyle.Bottom,
+            .Height = 50,
+            .BackColor = TOOLBAR_CLR
+        }
 
-        Dim bCopy = Btn("Copy", 8) : AddHandler bCopy.Click, AddressOf BtnCopy_Click
-        Dim bSave = Btn("Save", 96) : AddHandler bSave.Click, AddressOf BtnSave_Click
-        Dim bDrag = Btn("Drag && Drop", 184, 100) : AddHandler bDrag.MouseDown, AddressOf BtnDrag_MouseDown
-        Dim bFolder = Btn("Open Folder", 292, 100) : AddHandler bFolder.Click, AddressOf BtnOpenFolder_Click
+        ' Separator line at top of toolbar
+        Dim sep As New Panel() With {
+            .Dock = DockStyle.Top,
+            .Height = 1,
+            .BackColor = Color.FromArgb(60, 60, 60)
+        }
+        toolbar.Controls.Add(sep)
 
-        _btnPin = Btn("Pin", 400, 58)
-        AddHandler _btnPin.Click, Sub(s, e)
-                                      Me.TopMost = Not Me.TopMost
-                                      _btnPin.Text = If(Me.TopMost, "Pinned", "Pin")
-                                      _btnPin.BackColor = If(Me.TopMost, ACTIVE_CLR, INACTIVE_CLR)
-                                  End Sub
+        Dim x = 8
 
-        row1.Controls.AddRange({bCopy, bSave, bDrag, bFolder, _btnPin})
+        ' Action buttons (left group)
+        Dim bCopy = TB("Copy", x) : AddHandler bCopy.Click, AddressOf BtnCopy_Click : x += bCopy.Width + 4
+        Dim bSave = TB("Save", x) : AddHandler bSave.Click, AddressOf BtnSave_Click : x += bSave.Width + 4
+        Dim bDrag = TB("Drag", x) : AddHandler bDrag.MouseDown, AddressOf BtnDrag_MouseDown : x += bDrag.Width + 4
+        Dim bFolder = TB("Folder", x) : AddHandler bFolder.Click, AddressOf BtnOpenFolder_Click : x += bFolder.Width + 12
 
-        ' ── Row 2: drawing tools ───────────────────────────────────────────
-        Dim row2 As New Panel() With {.Dock = DockStyle.Top, .Height = 40, .BackColor = Color.FromArgb(35, 35, 38)}
+        ' Divider
+        toolbar.Controls.Add(Divider(x)) : x += 13
 
-        ' Pen button
-        Dim bPen = Btn("Pen", 8, 52)
+        ' Tool buttons
+        Dim bPen = TB("Pen", x)
         _toolBtns(DrawTool.Pen) = bPen
         AddHandler bPen.Click, Sub(s, e) SetTool(DrawTool.Pen)
+        x += bPen.Width + 4
 
-        ' Pen color preset dropdown arrow
+        ' Pen color dropdown
         Dim penMenu As New ContextMenuStrip()
-        penMenu.Items.Add("Red",    Nothing, Sub() SetPenColor(Color.Red))
-        penMenu.Items.Add("Blue",   Nothing, Sub() SetPenColor(Color.DodgerBlue))
-        penMenu.Items.Add("Black",  Nothing, Sub() SetPenColor(Color.Black))
-        penMenu.Items.Add("Yellow", Nothing, Sub() SetPenColor(Color.Yellow))
-        penMenu.Items.Add("Green",  Nothing, Sub() SetPenColor(Color.LimeGreen))
+        penMenu.BackColor = Color.FromArgb(40, 40, 40)
+        penMenu.ForeColor = Color.White
+        For Each item In {("Red", Color.Red), ("Blue", Color.DodgerBlue), ("Black", Color.Black), ("Yellow", Color.Yellow), ("Green", Color.LimeGreen)}
+            Dim c = item.Item2
+            Dim mi = penMenu.Items.Add(item.Item1)
+            AddHandler CType(mi, ToolStripMenuItem).Click, Sub(s, e) SetPenColor(c)
+        Next
         penMenu.Items.Add("-")
         penMenu.Items.Add("Custom...", Nothing, Sub()
                                                     Using cd As New ColorDialog() With {.Color = _penColor}
                                                         If cd.ShowDialog() = DialogResult.OK Then SetPenColor(cd.Color)
                                                     End Using
                                                 End Sub)
-        Dim bDrop = Btn("v", 62, 16)
-        bDrop.Font = New Font("Segoe UI", 7)
+        Dim bDrop = New Button() With {
+            .Text = "▾", .FlatStyle = FlatStyle.Flat, .ForeColor = Color.Gray,
+            .BackColor = INACTIVE_CLR, .Size = New Size(18, 30), .Location = New Point(x, 9),
+            .Font = New Font("Segoe UI", 7)
+        }
+        bDrop.FlatAppearance.BorderColor = Color.FromArgb(70, 70, 70)
         AddHandler bDrop.Click, Sub(s, e) penMenu.Show(bDrop, New Point(0, bDrop.Height))
+        x += bDrop.Width + 6
 
-        ' Arrow
-        Dim bArrow = Btn("Arrow", 86, 58)
+        Dim bArrow = TB("Arrow", x)
         _toolBtns(DrawTool.Arrow) = bArrow
         AddHandler bArrow.Click, Sub(s, e) SetTool(DrawTool.Arrow)
+        x += bArrow.Width + 4
 
-        ' Text
-        Dim bText = Btn("Text", 152, 52)
+        Dim bMove = TB("Move", x)
+        _toolBtns(DrawTool.SelectTool) = bMove
+        AddHandler bMove.Click, Sub(s, e) SetTool(DrawTool.SelectTool)
+        x += bMove.Width + 4
+
+        Dim bText = TB("Text", x)
         _toolBtns(DrawTool.Text) = bText
         AddHandler bText.Click, Sub(s, e) SetTool(DrawTool.Text)
+        x += bText.Width + 4
 
-        ' Eraser
-        Dim bErase = Btn("Erase", 212, 58)
+        Dim bErase = TB("Erase", x)
         _toolBtns(DrawTool.Eraser) = bErase
         AddHandler bErase.Click, Sub(s, e) SetTool(DrawTool.Eraser)
+        x += bErase.Width + 12
+
+        ' Divider
+        toolbar.Controls.Add(Divider(x)) : x += 13
 
         ' Color swatch
         _colorSwatch = New Panel() With {
-            .Size = New Size(26, 26),
-            .Location = New Point(280, 7),
-            .BackColor = _penColor,
-            .BorderStyle = BorderStyle.FixedSingle,
-            .Cursor = Cursors.Hand
+            .Size = New Size(28, 28), .Location = New Point(x, 11),
+            .BackColor = _penColor, .BorderStyle = BorderStyle.None, .Cursor = Cursors.Hand
         }
+        ' Rounded look via Paint
+        AddHandler _colorSwatch.Paint, Sub(s, e2)
+                                           Dim g2 = e2.Graphics
+                                           g2.SmoothingMode = SmoothingMode.AntiAlias
+                                           Using br As New SolidBrush(_penColor)
+                                               g2.FillEllipse(br, 1, 1, 25, 25)
+                                           End Using
+                                           Using pen As New Pen(Color.FromArgb(100, 100, 100), 1.5F)
+                                               g2.DrawEllipse(pen, 1, 1, 25, 25)
+                                           End Using
+                                       End Sub
         AddHandler _colorSwatch.Click, Sub(s, e)
                                            Using cd As New ColorDialog() With {.Color = _penColor}
                                                If cd.ShowDialog() = DialogResult.OK Then SetPenColor(cd.Color)
                                            End Using
                                        End Sub
+        x += 36
 
-        ' Size S / M / L
-        Dim bS = Btn("S", 315, 22) : AddHandler bS.Click, Sub(s, e) _penSize = 2
-        Dim bM = Btn("M", 339, 22) : AddHandler bM.Click, Sub(s, e) _penSize = 4
-        Dim bL = Btn("L", 363, 22) : AddHandler bL.Click, Sub(s, e) _penSize = 7
+        ' S M L size buttons
+        Dim bS = SzBtn("S", x, 2) : x += bS.Width + 2
+        Dim bM = SzBtn("M", x, 4) : x += bM.Width + 2
+        Dim bL = SzBtn("L", x, 7) : x += bL.Width + 12
+
+        ' Divider
+        toolbar.Controls.Add(Divider(x)) : x += 13
 
         ' Undo
-        Dim bUndo = Btn("Undo", 395, 58)
+        Dim bUndo = TB("Undo", x)
         AddHandler bUndo.Click, AddressOf BtnUndo_Click
+        x += bUndo.Width + 4
 
-        row2.Controls.AddRange({bPen, bDrop, bArrow, bText, bErase, _colorSwatch, bS, bM, bL, bUndo})
+        ' Pin (right-aligned feel, just after undo)
+        _btnPin = TB("Pin", x)
+        AddHandler _btnPin.Click, Sub(s, e)
+                                      Me.TopMost = Not Me.TopMost
+                                      _btnPin.Text = If(Me.TopMost, "Pinned", "Pin")
+                                      _btnPin.BackColor = If(Me.TopMost, ACTIVE_CLR, INACTIVE_CLR)
+                                  End Sub
+
+        toolbar.Controls.AddRange({bCopy, bSave, bDrag, bFolder, bPen, bDrop, bArrow, bMove, bText, bErase,
+                                   _colorSwatch, bS, bM, bL, bUndo, _btnPin})
 
         ' ── Canvas ────────────────────────────────────────────────────────
-        _canvas = New DoubleBufferedPanel() With {.Dock = DockStyle.Fill, .BackColor = Color.FromArgb(30, 30, 30)}
+        _canvas = New DoubleBufferedPanel() With {.Dock = DockStyle.Fill, .BackColor = Color.FromArgb(22, 22, 22)}
         AddHandler _canvas.Paint, AddressOf Canvas_Paint
         AddHandler _canvas.MouseDown, AddressOf Canvas_MouseDown
         AddHandler _canvas.MouseMove, AddressOf Canvas_MouseMove
         AddHandler _canvas.MouseUp, AddressOf Canvas_MouseUp
 
         Me.Controls.Add(_canvas)
-        Me.Controls.Add(row2)
-        Me.Controls.Add(row1)
+        Me.Controls.Add(toolbar)
     End Sub
 
-    Private Function Btn(text As String, x As Integer, Optional w As Integer = 80) As Button
+    Private Function TB(text As String, x As Integer, Optional w As Integer = 0) As Button
+        If w = 0 Then w = Math.Max(44, text.Length * 9 + 16)
         Dim b As New Button()
         b.Text = text
         b.FlatStyle = FlatStyle.Flat
-        b.ForeColor = Color.White
+        b.ForeColor = Color.FromArgb(220, 220, 220)
         b.BackColor = INACTIVE_CLR
-        b.FlatAppearance.BorderColor = Color.FromArgb(80, 80, 85)
-        b.Size = New Size(w, 28)
-        b.Location = New Point(x, 6)
+        b.FlatAppearance.BorderColor = Color.FromArgb(70, 70, 70)
+        b.FlatAppearance.MouseOverBackColor = Color.FromArgb(75, 75, 75)
+        b.Font = New Font("Segoe UI", 9)
+        b.Size = New Size(w, 30)
+        b.Location = New Point(x, 9)
+        b.Cursor = Cursors.Hand
         Return b
     End Function
 
-    ' ── Tool helpers ───────────────────────────────────────────────────────
+    Private Function SzBtn(text As String, x As Integer, sz As Integer) As Button
+        Dim b = TB(text, x, 26)
+        b.Font = New Font("Segoe UI", 8, FontStyle.Bold)
+        AddHandler b.Click, Sub(s, e) _penSize = sz
+        Return b
+    End Function
+
+    Private Function Divider(x As Integer) As Panel
+        Return New Panel() With {
+            .Size = New Size(1, 32), .Location = New Point(x, 9),
+            .BackColor = Color.FromArgb(65, 65, 65)
+        }
+    End Function
+
+    ' ── Tool & color ───────────────────────────────────────────────────────
     Private Sub SetTool(t As DrawTool)
         _tool = t
         For Each kvp In _toolBtns
             kvp.Value.BackColor = If(kvp.Key = t, ACTIVE_CLR, INACTIVE_CLR)
         Next
-        _canvas.Cursor = If(t = DrawTool.None, Cursors.Default, Cursors.Cross)
+        Select Case t
+            Case DrawTool.Eraser : _canvas.Cursor = Cursors.Cross
+            Case DrawTool.SelectTool : _canvas.Cursor = Cursors.SizeAll
+            Case DrawTool.None   : _canvas.Cursor = Cursors.Default
+            Case Else            : _canvas.Cursor = Cursors.Cross
+        End Select
     End Sub
 
     Private Sub SetPenColor(c As Color)
         _penColor = c
-        _colorSwatch.BackColor = c
+        _colorSwatch.Invalidate()
         If _tool = DrawTool.None Then SetTool(DrawTool.Pen)
     End Sub
 
     ' ── Coordinate helpers ─────────────────────────────────────────────────
     Private Function GetImageRect() As Rectangle
-        Dim pw = _canvas.ClientSize.Width
-        Dim ph = _canvas.ClientSize.Height
+        Dim pw = _canvas.ClientSize.Width, ph = _canvas.ClientSize.Height
         Dim s = Math.Min(CDbl(pw) / _bitmap.Width, CDbl(ph) / _bitmap.Height)
-        Dim dw = CInt(_bitmap.Width * s)
-        Dim dh = CInt(_bitmap.Height * s)
+        Dim dw = CInt(_bitmap.Width * s), dh = CInt(_bitmap.Height * s)
         Return New Rectangle((pw - dw) \ 2, (ph - dh) \ 2, dw, dh)
     End Function
 
@@ -202,7 +278,34 @@ Public Class PreviewForm
                          Math.Max(0, Math.Min(_bitmap.Height - 1, y)))
     End Function
 
-    ' ── Canvas events ──────────────────────────────────────────────────────
+    Private Function ImageToPanel(p As Point) As Point
+        Dim r = GetImageRect()
+        Dim x = CInt(r.X + CDbl(p.X) * r.Width / _bitmap.Width)
+        Dim y = CInt(r.Y + CDbl(p.Y) * r.Height / _bitmap.Height)
+        Return New Point(x, y)
+    End Function
+
+    ' ── Arrow hit test ─────────────────────────────────────────────────────
+    Private Function HitTestArrow(panelPt As Point) As ArrowShape
+        Dim r = GetImageRect()
+        If r.Width = 0 Then Return Nothing
+        Dim scl = CDbl(r.Width) / _bitmap.Width
+        For Each a In _arrows
+            Dim p1 = ImageToPanel(a.Pt1)
+            Dim p2 = ImageToPanel(a.Pt2)
+            If DistToSegment(panelPt, p1, p2) < Math.Max(8, a.Size * scl + 4) Then Return a
+        Next
+        Return Nothing
+    End Function
+
+    Private Shared Function DistToSegment(pt As Point, a As Point, b As Point) As Double
+        Dim dx = b.X - a.X, dy = b.Y - a.Y
+        If dx = 0 AndAlso dy = 0 Then Return Math.Sqrt((pt.X - a.X) ^ 2 + (pt.Y - a.Y) ^ 2)
+        Dim t = Math.Max(0, Math.Min(1, ((pt.X - a.X) * dx + (pt.Y - a.Y) * dy) / (dx * dx + dy * dy)))
+        Return Math.Sqrt((pt.X - (a.X + t * dx)) ^ 2 + (pt.Y - (a.Y + t * dy)) ^ 2)
+    End Function
+
+    ' ── Canvas paint ───────────────────────────────────────────────────────
     Private Sub Canvas_Paint(sender As Object, e As PaintEventArgs)
         Dim g = e.Graphics
         g.InterpolationMode = InterpolationMode.HighQualityBicubic
@@ -210,20 +313,38 @@ Public Class PreviewForm
         g.DrawImage(_bitmap, r)
         g.DrawImage(_annotationLayer, r)
 
-        ' Live arrow preview while dragging
+        ' Draw arrows
+        Dim scl = If(r.Width > 0, CDbl(r.Width) / _bitmap.Width, 1.0)
+        g.SmoothingMode = SmoothingMode.AntiAlias
+        For Each a In _arrows
+            DrawArrowGfx(g, ImageToPanel(a.Pt1), ImageToPanel(a.Pt2), a.Color, CSng(a.Size * scl), a Is _selectedArrow)
+        Next
+
+        ' Arrow preview
         If _drawing AndAlso _tool = DrawTool.Arrow Then
-            g.SmoothingMode = SmoothingMode.AntiAlias
-            Using p As New Pen(_penColor, _penSize)
-                Try
-                    Dim capSz = Math.Max(4.0F, _penSize * 2.0F)
-                    p.CustomEndCap = New AdjustableArrowCap(capSz, capSz)
-                Catch
-                End Try
-                g.DrawLine(p, _startPtPanel, _previewPt)
+            DrawArrowGfx(g, _startPtPanel, _previewPt, _penColor, _penSize, False)
+        End If
+    End Sub
+
+    Private Sub DrawArrowGfx(g As Graphics, p1 As Point, p2 As Point, c As Color, sz As Single, selected As Boolean)
+        If p1 = p2 Then Return
+        Using pen As New Pen(c, sz)
+            Try
+                Dim capSz = Math.Max(4.0F, sz * 2.5F)
+                pen.CustomEndCap = New AdjustableArrowCap(capSz, capSz)
+            Catch
+            End Try
+            g.DrawLine(pen, p1, p2)
+        End Using
+        If selected Then
+            Using pen As New Pen(Color.White, 1) With {.DashStyle = DashStyle.Dot}
+                g.DrawEllipse(pen, p1.X - 5, p1.Y - 5, 10, 10)
+                g.DrawEllipse(pen, p2.X - 5, p2.Y - 5, 10, 10)
             End Using
         End If
     End Sub
 
+    ' ── Canvas mouse events ────────────────────────────────────────────────
     Private Sub Canvas_MouseDown(sender As Object, e As MouseEventArgs)
         If e.Button <> MouseButtons.Left OrElse _tool = DrawTool.None Then Return
 
@@ -232,16 +353,34 @@ Public Class PreviewForm
         _startPtPanel = e.Location
         _previewPt = e.Location
 
-        If _tool = DrawTool.Text Then
-            ShowTextInput(e.Location)
-            Return
-        End If
+        Select Case _tool
+            Case DrawTool.Text
+                ShowTextInput(e.Location)
 
-        _drawing = True
-        If _tool = DrawTool.Pen OrElse _tool = DrawTool.Eraser Then PushUndo()
+            Case DrawTool.SelectTool
+                _selectedArrow = HitTestArrow(e.Location)
+                If _selectedArrow IsNot Nothing Then
+                    _drawing = True
+                    _dragOffsetStart = New Point(_startPt.X - _selectedArrow.Pt1.X, _startPt.Y - _selectedArrow.Pt1.Y)
+                    _dragOffsetEnd = New Point(_startPt.X - _selectedArrow.Pt2.X, _startPt.Y - _selectedArrow.Pt2.Y)
+                End If
+                _canvas.Invalidate()
+
+            Case DrawTool.Pen, DrawTool.Eraser
+                PushUndo()
+                _drawing = True
+
+            Case DrawTool.Arrow
+                _drawing = True
+        End Select
     End Sub
 
     Private Sub Canvas_MouseMove(sender As Object, e As MouseEventArgs)
+        ' Update cursor for Select tool hover
+        If _tool = DrawTool.SelectTool AndAlso Not _drawing Then
+            _canvas.Cursor = If(HitTestArrow(e.Location) IsNot Nothing, Cursors.SizeAll, Cursors.Default)
+        End If
+
         If Not _drawing Then Return
         _previewPt = e.Location
         Dim imgPt = PanelToImage(e.Location)
@@ -251,8 +390,7 @@ Public Class PreviewForm
                 Using g = Graphics.FromImage(_annotationLayer)
                     g.SmoothingMode = SmoothingMode.AntiAlias
                     Using p As New Pen(_penColor, _penSize)
-                        p.StartCap = LineCap.Round
-                        p.EndCap = LineCap.Round
+                        p.StartCap = LineCap.Round : p.EndCap = LineCap.Round
                         g.DrawLine(p, _lastPt, imgPt)
                     End Using
                 End Using
@@ -260,7 +398,7 @@ Public Class PreviewForm
                 _canvas.Invalidate()
 
             Case DrawTool.Eraser
-                Dim sz = Math.Max(8, _penSize * 8)
+                Dim sz = Math.Max(10, _penSize * 8)
                 Using g = Graphics.FromImage(_annotationLayer)
                     g.CompositingMode = CompositingMode.SourceCopy
                     Using b As New SolidBrush(Color.FromArgb(0, 0, 0, 0))
@@ -272,6 +410,13 @@ Public Class PreviewForm
 
             Case DrawTool.Arrow
                 _canvas.Invalidate()
+
+            Case DrawTool.SelectTool
+                If _selectedArrow IsNot Nothing Then
+                    _selectedArrow.Pt1 = New Point(imgPt.X - _dragOffsetStart.X, imgPt.Y - _dragOffsetStart.Y)
+                    _selectedArrow.Pt2 = New Point(imgPt.X - _dragOffsetEnd.X, imgPt.Y - _dragOffsetEnd.Y)
+                    _canvas.Invalidate()
+                End If
         End Select
     End Sub
 
@@ -283,42 +428,28 @@ Public Class PreviewForm
             Dim imgPt = PanelToImage(e.Location)
             If imgPt <> _startPt Then
                 PushUndo()
-                DrawArrowOnLayer(_startPt, imgPt)
+                _arrows.Add(New ArrowShape() With {
+                    .Pt1 = _startPt, .Pt2 = imgPt,
+                    .Color = _penColor, .Size = _penSize
+                })
+                _canvas.Invalidate()
             End If
-            _canvas.Invalidate()
+        ElseIf _tool = DrawTool.SelectTool AndAlso _selectedArrow IsNot Nothing Then
+            PushUndo()
         End If
     End Sub
 
-    ' ── Drawing on annotation layer ────────────────────────────────────────
-    Private Sub DrawArrowOnLayer(from As Point, [to] As Point)
-        Using g = Graphics.FromImage(_annotationLayer)
-            g.SmoothingMode = SmoothingMode.AntiAlias
-            Using p As New Pen(_penColor, _penSize)
-                Try
-                    Dim capSz = Math.Max(4.0F, _penSize * 2.5F)
-                    p.CustomEndCap = New AdjustableArrowCap(capSz, capSz)
-                Catch
-                End Try
-                g.DrawLine(p, from, [to])
-            End Using
-        End Using
-    End Sub
-
+    ' ── Text ───────────────────────────────────────────────────────────────
     Private Sub ShowTextInput(panelLoc As Point)
         Dim tb As New TextBox() With {
-            .BackColor = Color.FromArgb(50, 50, 55),
+            .BackColor = Color.FromArgb(40, 40, 42),
             .ForeColor = _penColor,
             .Font = New Font("Segoe UI", 11, FontStyle.Bold),
             .BorderStyle = BorderStyle.FixedSingle,
-            .Size = New Size(200, 30),
-            .Location = New Point(
-                Math.Min(panelLoc.X, _canvas.Width - 205),
-                Math.Min(panelLoc.Y - 15, _canvas.Height - 35))
+            .Size = New Size(200, 32),
+            .Location = New Point(Math.Min(panelLoc.X, _canvas.Width - 205), Math.Min(panelLoc.Y - 16, _canvas.Height - 36))
         }
-        _canvas.Controls.Add(tb)
-        tb.BringToFront()
-        tb.Focus()
-
+        _canvas.Controls.Add(tb) : tb.BringToFront() : tb.Focus()
         AddHandler tb.KeyDown, Sub(s, e2)
                                    If e2.KeyCode = Keys.Enter AndAlso Not e2.Shift Then
                                        e2.SuppressKeyPress = True
@@ -337,15 +468,11 @@ Public Class PreviewForm
             PushUndo()
             DrawTextOnLayer(tb.Text, PanelToImage(panelLoc))
         End If
-        RemoveTb(tb)
-        _canvas.Invalidate()
+        RemoveTb(tb) : _canvas.Invalidate()
     End Sub
 
     Private Sub RemoveTb(tb As TextBox)
-        If _canvas.Controls.Contains(tb) Then
-            _canvas.Controls.Remove(tb)
-            tb.Dispose()
-        End If
+        If _canvas.Controls.Contains(tb) Then _canvas.Controls.Remove(tb) : tb.Dispose()
     End Sub
 
     Private Sub DrawTextOnLayer(text As String, imgPt As Point)
@@ -355,7 +482,7 @@ Public Class PreviewForm
             Dim scale = If(r.Width > 0, CDbl(_bitmap.Width) / r.Width, 1.0)
             Dim fontSize = CSng(Math.Max(14, _penSize * 5) * scale)
             Using f As New Font("Segoe UI", fontSize, FontStyle.Bold, GraphicsUnit.Pixel)
-                Using shadow As New SolidBrush(Color.FromArgb(160, 0, 0, 0))
+                Using shadow As New SolidBrush(Color.FromArgb(140, 0, 0, 0))
                     g.DrawString(text, f, shadow, imgPt.X + 2, imgPt.Y + 2)
                 End Using
                 Using fill As New SolidBrush(_penColor)
@@ -375,18 +502,30 @@ Public Class PreviewForm
     End Sub
 
     Private Sub BtnUndo_Click(sender As Object, e As EventArgs)
+        If _arrows.Count > 0 Then
+            _arrows.RemoveAt(_arrows.Count - 1)
+            _selectedArrow = Nothing
+            _canvas.Invalidate()
+            Return
+        End If
         If _undoStack.Count = 0 Then Return
         _annotationLayer.Dispose()
         _annotationLayer = _undoStack.Pop()
         _canvas.Invalidate()
     End Sub
 
-    ' ── Merge screenshot + annotations ─────────────────────────────────────
+    ' ── Merge ──────────────────────────────────────────────────────────────
     Private Function GetMergedBitmap() As Bitmap
         Dim merged As New Bitmap(_bitmap.Width, _bitmap.Height, Imaging.PixelFormat.Format32bppArgb)
         Using g = Graphics.FromImage(merged)
+            g.SmoothingMode = SmoothingMode.AntiAlias
             g.DrawImage(_bitmap, 0, 0)
             g.DrawImage(_annotationLayer, 0, 0)
+            ' Bake arrows into merged output
+            Dim r = GetImageRect()
+            For Each a In _arrows
+                DrawArrowGfx(g, a.Pt1, a.Pt2, a.Color, a.Size, False)
+            Next
         End Using
         Return merged
     End Function
@@ -403,7 +542,7 @@ Public Class PreviewForm
         End Try
     End Sub
 
-    ' ── Button handlers ────────────────────────────────────────────────────
+    ' ── Action handlers ────────────────────────────────────────────────────
     Private Sub BtnCopy_Click(sender As Object, e As EventArgs)
         Dim merged = GetMergedBitmap()
         Dim data As New DataObject()
@@ -419,9 +558,8 @@ Public Class PreviewForm
             data.SetFileDropList(files)
         End If
         Clipboard.SetDataObject(data, True)
-        Dim btn = CType(sender, Button)
-        Dim orig = btn.Text
-        btn.Text = "Copied!" : btn.BackColor = Color.FromArgb(40, 120, 40)
+        Dim btn = CType(sender, Button), orig = btn.Text
+        btn.Text = "Copied!" : btn.BackColor = Color.FromArgb(35, 110, 35)
         Dim t As New Timer() With {.Interval = 1500}
         AddHandler t.Tick, Sub()
                                btn.Text = orig : btn.BackColor = INACTIVE_CLR
@@ -432,15 +570,12 @@ Public Class PreviewForm
 
     Private Sub BtnSave_Click(sender As Object, e As EventArgs)
         Using sfd As New SaveFileDialog() With {
-            .Title = "Save Screenshot",
-            .Filter = "PNG Image|*.png|JPEG Image|*.jpg",
-            .DefaultExt = "png",
-            .FileName = "screenshot_" & DateTime.Now.ToString("yyyyMMdd_HHmmss")
+            .Title = "Save Screenshot", .Filter = "PNG|*.png|JPEG|*.jpg",
+            .DefaultExt = "png", .FileName = "screenshot_" & DateTime.Now.ToString("yyyyMMdd_HHmmss")
         }
             If sfd.ShowDialog() = DialogResult.OK Then
                 Dim merged = GetMergedBitmap()
-                Dim fmt = If(sfd.FilterIndex = 2, Imaging.ImageFormat.Jpeg, Imaging.ImageFormat.Png)
-                merged.Save(sfd.FileName, fmt)
+                merged.Save(sfd.FileName, If(sfd.FilterIndex = 2, Imaging.ImageFormat.Jpeg, Imaging.ImageFormat.Png))
                 merged.Dispose()
             End If
         End Using
@@ -452,8 +587,7 @@ Public Class PreviewForm
     End Sub
 
     Private Sub BtnDrag_MouseDown(sender As Object, e As MouseEventArgs)
-        If e.Button <> MouseButtons.Left Then Return
-        If String.IsNullOrEmpty(_tempPath) OrElse Not File.Exists(_tempPath) Then Return
+        If e.Button <> MouseButtons.Left OrElse String.IsNullOrEmpty(_tempPath) OrElse Not File.Exists(_tempPath) Then Return
         Dim data As New DataObject()
         Dim files As New System.Collections.Specialized.StringCollection()
         files.Add(_tempPath)
@@ -461,7 +595,6 @@ Public Class PreviewForm
         CType(sender, Button).DoDragDrop(data, DragDropEffects.Copy)
     End Sub
 
-    ' ── Dispose ────────────────────────────────────────────────────────────
     Protected Overrides Sub Dispose(disposing As Boolean)
         If disposing Then
             _bitmap?.Dispose()
@@ -475,13 +608,10 @@ Public Class PreviewForm
 
 End Class
 
-' ── Double-buffered panel to prevent flicker ───────────────────────────────
 Friend Class DoubleBufferedPanel
     Inherits Panel
     Public Sub New()
         Me.DoubleBuffered = True
-        Me.SetStyle(ControlStyles.AllPaintingInWmPaint Or
-                    ControlStyles.OptimizedDoubleBuffer Or
-                    ControlStyles.UserPaint, True)
+        Me.SetStyle(ControlStyles.AllPaintingInWmPaint Or ControlStyles.OptimizedDoubleBuffer Or ControlStyles.UserPaint, True)
     End Sub
 End Class
