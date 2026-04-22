@@ -91,3 +91,16 @@ C:\Users\<YourName>\AppData\Local\Temp\ScreenshotApp\
 - Language: Visual Basic .NET
 - Framework: WinForms on .NET 10
 - Target: Windows 10 x64
+
+---
+
+## Credits
+
+- **Author:** [johndoe2x](https://github.com/johndoe2x)
+- **Inspired by:** [Shottr](https://shottr.cc/) — a Mac screenshot tool
+- **Built with assistance from:** [Claude](https://claude.ai) by Anthropic
+
+If you use or fork this project, a credit back to the original repo is appreciated:
+```
+Based on ScreenshotVB by johndoe2x — https://github.com/johndoe2x/ScreenshotVB
+```
