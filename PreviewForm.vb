@@ -99,16 +99,16 @@ Public Class PreviewForm
         Dim x = 8
 
         ' ── Group 1: actions ──────────────────────────────────────────────
-        Dim bCopy = IBtn(ICO_COPY, x) : tips.SetToolTip(bCopy, "Copy  (includes annotations)")
+        Dim bCopy = TBtn("Copy", x) : tips.SetToolTip(bCopy, "Copy (includes annotations)")
         AddHandler bCopy.Click, AddressOf BtnCopy_Click : x += bCopy.Width + 3
 
-        Dim bSave = IBtn(ICO_SAVE, x) : tips.SetToolTip(bSave, "Save as PNG / JPEG")
+        Dim bSave = TBtn("Save", x) : tips.SetToolTip(bSave, "Save as PNG / JPEG")
         AddHandler bSave.Click, AddressOf BtnSave_Click : x += bSave.Width + 3
 
         Dim bDrag = IBtn(ICO_DRAG, x) : tips.SetToolTip(bDrag, "Drag & Drop into any app")
         AddHandler bDrag.MouseDown, AddressOf BtnDrag_MouseDown : x += bDrag.Width + 3
 
-        Dim bFolder = IBtn(ICO_FOLDER, x) : tips.SetToolTip(bFolder, "Open screenshots folder")
+        Dim bFolder = TBtn("Folder", x) : tips.SetToolTip(bFolder, "Open screenshots folder")
         AddHandler bFolder.Click, AddressOf BtnOpenFolder_Click : x += bFolder.Width + 8
 
         toolbar.Controls.Add(Divider(x)) : x += 12
@@ -142,17 +142,17 @@ Public Class PreviewForm
         AddHandler bDrop.Click, Sub(s, e) penMenu.Show(bDrop, New Point(0, bDrop.Height))
         x += bDrop.Width + 6
 
-        Dim bArrow = IBtn(ICO_ARROW, x) : tips.SetToolTip(bArrow, "Arrow — click & drag")
+        Dim bArrow = TBtn("Arrow", x) : tips.SetToolTip(bArrow, "Arrow — click & drag")
         _toolBtns(DrawTool.Arrow) = bArrow
         AddHandler bArrow.Click, Sub(s, e) SetTool(DrawTool.Arrow)
         x += bArrow.Width + 3
 
-        Dim bMove = IBtn(ICO_MOVE, x) : tips.SetToolTip(bMove, "Move — drag an arrow to reposition")
+        Dim bMove = TBtn("Move", x) : tips.SetToolTip(bMove, "Move — drag an arrow to reposition")
         _toolBtns(DrawTool.SelectTool) = bMove
         AddHandler bMove.Click, Sub(s, e) SetTool(DrawTool.SelectTool)
         x += bMove.Width + 3
 
-        Dim bText = IBtn(ICO_TEXT, x) : tips.SetToolTip(bText, "Text — click to place, Enter to confirm")
+        Dim bText = TBtn("Text", x) : tips.SetToolTip(bText, "Text — click to place, Enter to confirm")
         _toolBtns(DrawTool.Text) = bText
         AddHandler bText.Click, Sub(s, e) SetTool(DrawTool.Text)
         x += bText.Width + 3
@@ -218,6 +218,22 @@ Public Class PreviewForm
         Me.Controls.Add(toolbar)
         Me.Controls.Add(_canvas)
     End Sub
+
+    ' Text label button
+    Private Function TBtn(text As String, x As Integer) As Button
+        Dim b As New Button()
+        b.Text = text
+        b.Font = New Font("Segoe UI", 9)
+        b.FlatStyle = FlatStyle.Flat
+        b.ForeColor = Color.FromArgb(210, 210, 210)
+        b.BackColor = INACTIVE_CLR
+        b.FlatAppearance.BorderColor = Color.FromArgb(65, 65, 65)
+        b.FlatAppearance.MouseOverBackColor = Color.FromArgb(72, 72, 72)
+        b.Size = New Size(Math.Max(44, text.Length * 8 + 16), 38)
+        b.Location = New Point(x, 7)
+        b.Cursor = Cursors.Hand
+        Return b
+    End Function
 
     ' Icon button using Segoe MDL2 Assets
     Private Function IBtn(icon As String, x As Integer, Optional w As Integer = 38) As Button
