@@ -76,14 +76,14 @@ Public Class PreviewForm
     Private Sub BuildUI()
         ' ── Single toolbar at bottom ───────────────────────────────────────
         Dim toolbar As New Panel() With {
-            .Dock = DockStyle.Bottom,
+            .Dock = DockStyle.Top,
             .Height = 50,
             .BackColor = TOOLBAR_CLR
         }
 
         ' Separator line at top of toolbar
         Dim sep As New Panel() With {
-            .Dock = DockStyle.Top,
+            .Dock = DockStyle.Bottom,
             .Height = 1,
             .BackColor = Color.FromArgb(60, 60, 60)
         }
@@ -207,8 +207,8 @@ Public Class PreviewForm
         AddHandler _canvas.MouseMove, AddressOf Canvas_MouseMove
         AddHandler _canvas.MouseUp, AddressOf Canvas_MouseUp
 
-        Me.Controls.Add(_canvas)
         Me.Controls.Add(toolbar)
+        Me.Controls.Add(_canvas)
     End Sub
 
     Private Function TB(text As String, x As Integer, Optional w As Integer = 0) As Button
