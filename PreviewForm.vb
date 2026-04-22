@@ -518,16 +518,24 @@ Public Class PreviewForm
     Private Sub DrawTextOnLayer(text As String, imgPt As Point)
         Using g = Graphics.FromImage(_annotationLayer)
             g.SmoothingMode = SmoothingMode.AntiAlias
+            g.TextRenderingHint = Drawing.Text.TextRenderingHint.AntiAliasGridFit
             Dim r = GetImageRect()
             Dim scale = If(r.Width > 0, CDbl(_bitmap.Width) / r.Width, 1.0)
-            Dim fontSize = CSng(Math.Max(14, _penSize * 5) * scale)
+            Dim fontSize = CSng(Math.Max(16, _penSize * 6) * scale)
             Using f As New Font("Segoe UI", fontSize, FontStyle.Bold, GraphicsUnit.Pixel)
-                Using shadow As New SolidBrush(Color.FromArgb(140, 0, 0, 0))
-                    g.DrawString(text, f, shadow, imgPt.X + 2, imgPt.Y + 2)
+                Dim path As New GraphicsPath()
+                path.AddString(text, f.FontFamily, CInt(FontStyle.Bold), fontSize,
+                               New PointF(imgPt.X, imgPt.Y), StringFormat.GenericTypographic)
+                ' Thin dark outline
+                Using outline As New Pen(Color.FromArgb(180, 0, 0, 0), CSng(Math.Max(1.5, scale * 1.5)))
+                    outline.LineJoin = LineJoin.Round
+                    g.DrawPath(outline, path)
                 End Using
+                ' Solid color fill
                 Using fill As New SolidBrush(_penColor)
-                    g.DrawString(text, f, fill, imgPt.X, imgPt.Y)
+                    g.FillPath(fill, path)
                 End Using
+                path.Dispose()
             End Using
         End Using
     End Sub
