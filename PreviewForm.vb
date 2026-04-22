@@ -28,10 +28,22 @@ Public Class PreviewForm
         Public Size As Integer
     End Class
 
+    ' Text label object for move support
+    Private Class TextLabel
+        Public Text As String
+        Public Location As Point
+        Public Color As Color
+        Public FontSizePx As Single
+    End Class
+
     Private _arrows As New List(Of ArrowShape)
     Private _selectedArrow As ArrowShape = Nothing
     Private _dragOffsetStart As Point
     Private _dragOffsetEnd As Point
+
+    Private _labels As New List(Of TextLabel)
+    Private _selectedLabel As TextLabel = Nothing
+    Private _dragLabelOffset As Point
 
     Private _tool As DrawTool = DrawTool.None
     Private _penColor As Color = Color.Red
@@ -360,6 +372,11 @@ Public Class PreviewForm
             DrawArrowGfx(g, ImageToPanel(a.Pt1), ImageToPanel(a.Pt2), a.Color, CSng(a.Size * scl), a Is _selectedArrow)
         Next
 
+        ' Draw text labels
+        For Each lbl In _labels
+            DrawLabelOnCanvas(g, lbl, lbl Is _selectedLabel)
+        Next
+
         ' Arrow preview
         If _drawing AndAlso _tool = DrawTool.Arrow Then
             DrawArrowGfx(g, _startPtPanel, _previewPt, _penColor, _penSize, False)
@@ -384,6 +401,51 @@ Public Class PreviewForm
         End If
     End Sub
 
+    Private Sub DrawLabelOnCanvas(g As Graphics, lbl As TextLabel, selected As Boolean)
+        Dim r = GetImageRect()
+        If r.Width = 0 Then Return
+        Dim panelPt = ImageToPanel(lbl.Location)
+        Dim displayScale = CDbl(r.Width) / _bitmap.Width
+        Dim fontSize = CSng(lbl.FontSizePx * displayScale)
+        g.SmoothingMode = SmoothingMode.AntiAlias
+        g.TextRenderingHint = Drawing.Text.TextRenderingHint.AntiAliasGridFit
+        Dim path As New GraphicsPath()
+        path.AddString(lbl.Text, New FontFamily("Segoe UI"), CInt(FontStyle.Bold), fontSize,
+                       New PointF(panelPt.X, panelPt.Y), StringFormat.GenericTypographic)
+        Using outline As New Pen(Color.FromArgb(180, 0, 0, 0), CSng(Math.Max(1.5, displayScale * 1.5)))
+            outline.LineJoin = LineJoin.Round
+            g.DrawPath(outline, path)
+        End Using
+        Using fill As New SolidBrush(lbl.Color)
+            g.FillPath(fill, path)
+        End Using
+        If selected Then
+            Dim bounds = path.GetBounds()
+            Using selPen As New Pen(Color.White, 1) With {.DashStyle = DashStyle.Dot}
+                g.DrawRectangle(selPen, bounds.X - 2, bounds.Y - 2, bounds.Width + 4, bounds.Height + 4)
+            End Using
+        End If
+        path.Dispose()
+    End Sub
+
+    Private Function HitTestLabel(panelPt As Point) As TextLabel
+        Dim r = GetImageRect()
+        If r.Width = 0 Then Return Nothing
+        Dim displayScale = CDbl(r.Width) / _bitmap.Width
+        For Each lbl In _labels
+            Dim panelPos = ImageToPanel(lbl.Location)
+            Dim fontSize = CSng(lbl.FontSizePx * displayScale)
+            Dim path As New GraphicsPath()
+            path.AddString(lbl.Text, New FontFamily("Segoe UI"), CInt(FontStyle.Bold), fontSize,
+                           New PointF(panelPos.X, panelPos.Y), StringFormat.GenericTypographic)
+            Dim bounds = path.GetBounds()
+            path.Dispose()
+            Dim hitRect = New RectangleF(bounds.X - 4, bounds.Y - 4, bounds.Width + 8, bounds.Height + 8)
+            If hitRect.Contains(panelPt) Then Return lbl
+        Next
+        Return Nothing
+    End Function
+
     ' ── Canvas mouse events ────────────────────────────────────────────────
     Private Sub Canvas_MouseDown(sender As Object, e As MouseEventArgs)
         If e.Button <> MouseButtons.Left OrElse _tool = DrawTool.None Then Return
@@ -399,10 +461,14 @@ Public Class PreviewForm
 
             Case DrawTool.SelectTool
                 _selectedArrow = HitTestArrow(e.Location)
+                _selectedLabel = HitTestLabel(e.Location)
                 If _selectedArrow IsNot Nothing Then
                     _drawing = True
                     _dragOffsetStart = New Point(_startPt.X - _selectedArrow.Pt1.X, _startPt.Y - _selectedArrow.Pt1.Y)
                     _dragOffsetEnd = New Point(_startPt.X - _selectedArrow.Pt2.X, _startPt.Y - _selectedArrow.Pt2.Y)
+                ElseIf _selectedLabel IsNot Nothing Then
+                    _drawing = True
+                    _dragLabelOffset = New Point(_startPt.X - _selectedLabel.Location.X, _startPt.Y - _selectedLabel.Location.Y)
                 End If
                 _canvas.Invalidate()
 
@@ -418,7 +484,7 @@ Public Class PreviewForm
     Private Sub Canvas_MouseMove(sender As Object, e As MouseEventArgs)
         ' Update cursor for Select tool hover
         If _tool = DrawTool.SelectTool AndAlso Not _drawing Then
-            _canvas.Cursor = If(HitTestArrow(e.Location) IsNot Nothing, Cursors.SizeAll, Cursors.Default)
+            _canvas.Cursor = If(HitTestArrow(e.Location) IsNot Nothing OrElse HitTestLabel(e.Location) IsNot Nothing, Cursors.SizeAll, Cursors.Default)
         End If
 
         If Not _drawing Then Return
@@ -456,6 +522,9 @@ Public Class PreviewForm
                     _selectedArrow.Pt1 = New Point(imgPt.X - _dragOffsetStart.X, imgPt.Y - _dragOffsetStart.Y)
                     _selectedArrow.Pt2 = New Point(imgPt.X - _dragOffsetEnd.X, imgPt.Y - _dragOffsetEnd.Y)
                     _canvas.Invalidate()
+                ElseIf _selectedLabel IsNot Nothing Then
+                    _selectedLabel.Location = New Point(imgPt.X - _dragLabelOffset.X, imgPt.Y - _dragLabelOffset.Y)
+                    _canvas.Invalidate()
                 End If
         End Select
     End Sub
@@ -474,13 +543,21 @@ Public Class PreviewForm
                 })
                 _canvas.Invalidate()
             End If
-        ElseIf _tool = DrawTool.SelectTool AndAlso _selectedArrow IsNot Nothing Then
+        ElseIf _tool = DrawTool.SelectTool AndAlso (_selectedArrow IsNot Nothing OrElse _selectedLabel IsNot Nothing) Then
             PushUndo()
         End If
     End Sub
 
     ' ── Text ───────────────────────────────────────────────────────────────
+    Private _activeTextBox As TextBox = Nothing
+
     Private Sub ShowTextInput(panelLoc As Point)
+        ' Dismiss any open text box first (prevents stuck dark boxes)
+        If _activeTextBox IsNot Nothing Then
+            RemoveTb(_activeTextBox)
+            _activeTextBox = Nothing
+        End If
+
         Dim tb As New TextBox() With {
             .BackColor = Color.FromArgb(40, 40, 42),
             .ForeColor = _penColor,
@@ -489,6 +566,7 @@ Public Class PreviewForm
             .Size = New Size(200, 32),
             .Location = New Point(Math.Min(panelLoc.X, _canvas.Width - 205), Math.Min(panelLoc.Y - 16, _canvas.Height - 36))
         }
+        _activeTextBox = tb
         _canvas.Controls.Add(tb) : tb.BringToFront() : tb.Focus()
         AddHandler tb.KeyDown, Sub(s, e2)
                                    If e2.KeyCode = Keys.Enter AndAlso Not e2.Shift Then
@@ -506,39 +584,23 @@ Public Class PreviewForm
     Private Sub CommitText(tb As TextBox, panelLoc As Point)
         If Not String.IsNullOrWhiteSpace(tb.Text) Then
             PushUndo()
-            DrawTextOnLayer(tb.Text, PanelToImage(panelLoc))
+            Dim r = GetImageRect()
+            Dim scale = If(r.Width > 0, CDbl(_bitmap.Width) / r.Width, 1.0)
+            _labels.Add(New TextLabel() With {
+                .Text = tb.Text,
+                .Location = PanelToImage(panelLoc),
+                .Color = _penColor,
+                .FontSizePx = CSng(Math.Max(16, _penSize * 6) * scale)
+            })
         End If
         RemoveTb(tb) : _canvas.Invalidate()
     End Sub
 
     Private Sub RemoveTb(tb As TextBox)
+        If _activeTextBox Is tb Then _activeTextBox = Nothing
         If _canvas.Controls.Contains(tb) Then _canvas.Controls.Remove(tb) : tb.Dispose()
     End Sub
 
-    Private Sub DrawTextOnLayer(text As String, imgPt As Point)
-        Using g = Graphics.FromImage(_annotationLayer)
-            g.SmoothingMode = SmoothingMode.AntiAlias
-            g.TextRenderingHint = Drawing.Text.TextRenderingHint.AntiAliasGridFit
-            Dim r = GetImageRect()
-            Dim scale = If(r.Width > 0, CDbl(_bitmap.Width) / r.Width, 1.0)
-            Dim fontSize = CSng(Math.Max(16, _penSize * 6) * scale)
-            Using f As New Font("Segoe UI", fontSize, FontStyle.Bold, GraphicsUnit.Pixel)
-                Dim path As New GraphicsPath()
-                path.AddString(text, f.FontFamily, CInt(FontStyle.Bold), fontSize,
-                               New PointF(imgPt.X, imgPt.Y), StringFormat.GenericTypographic)
-                ' Thin dark outline
-                Using outline As New Pen(Color.FromArgb(180, 0, 0, 0), CSng(Math.Max(1.5, scale * 1.5)))
-                    outline.LineJoin = LineJoin.Round
-                    g.DrawPath(outline, path)
-                End Using
-                ' Solid color fill
-                Using fill As New SolidBrush(_penColor)
-                    g.FillPath(fill, path)
-                End Using
-                path.Dispose()
-            End Using
-        End Using
-    End Sub
 
     ' ── Undo ───────────────────────────────────────────────────────────────
     Private Sub PushUndo()
@@ -550,6 +612,12 @@ Public Class PreviewForm
     End Sub
 
     Private Sub BtnUndo_Click(sender As Object, e As EventArgs)
+        If _labels.Count > 0 Then
+            _labels.RemoveAt(_labels.Count - 1)
+            _selectedLabel = Nothing
+            _canvas.Invalidate()
+            Return
+        End If
         If _arrows.Count > 0 Then
             _arrows.RemoveAt(_arrows.Count - 1)
             _selectedArrow = Nothing
@@ -569,10 +637,24 @@ Public Class PreviewForm
             g.SmoothingMode = SmoothingMode.AntiAlias
             g.DrawImage(_bitmap, 0, 0)
             g.DrawImage(_annotationLayer, 0, 0)
-            ' Bake arrows into merged output
-            Dim r = GetImageRect()
+            ' Bake arrows
             For Each a In _arrows
                 DrawArrowGfx(g, a.Pt1, a.Pt2, a.Color, a.Size, False)
+            Next
+            ' Bake text labels
+            g.TextRenderingHint = Drawing.Text.TextRenderingHint.AntiAliasGridFit
+            For Each lbl In _labels
+                Dim path As New GraphicsPath()
+                path.AddString(lbl.Text, New FontFamily("Segoe UI"), CInt(FontStyle.Bold), lbl.FontSizePx,
+                               New PointF(lbl.Location.X, lbl.Location.Y), StringFormat.GenericTypographic)
+                Using outline As New Pen(Color.FromArgb(180, 0, 0, 0), 1.5F)
+                    outline.LineJoin = LineJoin.Round
+                    g.DrawPath(outline, path)
+                End Using
+                Using fill As New SolidBrush(lbl.Color)
+                    g.FillPath(fill, path)
+                End Using
+                path.Dispose()
             Next
         End Using
         Return merged
