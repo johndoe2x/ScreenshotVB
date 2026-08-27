@@ -58,10 +58,12 @@ Public Class PreviewForm
     Private _colorSwatch As Panel
     Private _toolBtns As New Dictionary(Of DrawTool, Button)
     Private _btnPin As Button
+    Private _pathBox As TextBox
 
     Private ReadOnly ACTIVE_CLR As Color = Color.FromArgb(0, 122, 204)
     Private ReadOnly INACTIVE_CLR As Color = Color.FromArgb(58, 58, 58)
     Private ReadOnly TOOLBAR_CLR As Color = Color.FromArgb(28, 28, 28)
+    Private Const FOOTER_H As Integer = 48
 
     ' Segoe MDL2 Assets icons (built into Windows 10)
     Private Const ICO_NEW    As String = ChrW(&HE722)
@@ -94,7 +96,7 @@ Public Class PreviewForm
         scale = Math.Min(scale, 1.0)
         Dim imgW = Math.Max(780, CInt(bmp.Width * scale))
         Dim imgH = Math.Max(200, CInt(bmp.Height * scale))
-        Me.ClientSize = New Size(imgW, imgH + 52)
+        Me.ClientSize = New Size(imgW, imgH + 52 + FOOTER_H)
 
         BuildUI()
         AutoSaveToTemp()
@@ -232,8 +234,109 @@ Public Class PreviewForm
         AddHandler _canvas.MouseMove, AddressOf Canvas_MouseMove
         AddHandler _canvas.MouseUp, AddressOf Canvas_MouseUp
 
+        ' ── Footer: saved-file path + copy ────────────────────────────────
+        Dim footer = BuildFooter(tips)
+
+        ' Docked children are laid out in z-order (index 0 first), so the
+        ' Fill canvas must be added last or it would swallow the whole form.
         Me.Controls.Add(toolbar)
+        Me.Controls.Add(footer)
         Me.Controls.Add(_canvas)
+    End Sub
+
+    ' ── Footer bar ─────────────────────────────────────────────────────────
+    Private Function BuildFooter(tips As ToolTip) As Panel
+        Dim footer As New Panel() With {
+            .Dock = DockStyle.Bottom, .Height = FOOTER_H, .BackColor = TOOLBAR_CLR,
+            .Padding = New Padding(8, 7, 8, 7)
+        }
+        footer.Controls.Add(New Panel() With {
+            .Dock = DockStyle.Top, .Height = 1, .BackColor = Color.FromArgb(55, 55, 55)
+        })
+
+        Dim lbl As New Label() With {
+            .Text = "Saved to", .Dock = DockStyle.Left, .Width = 68,
+            .TextAlign = ContentAlignment.MiddleLeft,
+            .Font = New Font("Segoe UI", 9), .ForeColor = Color.FromArgb(150, 150, 150),
+            .BackColor = Color.Transparent
+        }
+
+        Dim bCopyPath = FooterBtn(ICO_COPY)
+        tips.SetToolTip(bCopyPath, "Copy file path to clipboard")
+        AddHandler bCopyPath.Click, AddressOf BtnCopyPath_Click
+
+        Dim bReveal = FooterBtn(ICO_FOLDER)
+        tips.SetToolTip(bReveal, "Show this file in Explorer")
+        AddHandler bReveal.Click, AddressOf BtnRevealPath_Click
+
+        _pathBox = New TextBox() With {
+            .Dock = DockStyle.Fill, .ReadOnly = True,
+            .BorderStyle = BorderStyle.FixedSingle,
+            .BackColor = Color.FromArgb(38, 38, 40), .ForeColor = Color.FromArgb(200, 200, 200),
+            .Font = New Font("Consolas", 11)
+        }
+        tips.SetToolTip(_pathBox, "Full path — click to select all, Ctrl+C to copy")
+        AddHandler _pathBox.Click, Sub(s, e) _pathBox.SelectAll()
+        AddHandler _pathBox.Enter, Sub(s, e) _pathBox.SelectAll()
+
+        ' A single-line TextBox keeps its font-derived height, so pad the wrapper
+        ' to centre it against the taller buttons instead of pinning it to the top.
+        Dim wrap As New Panel() With {.Dock = DockStyle.Fill, .BackColor = Color.Transparent}
+        Dim innerH = FOOTER_H - footer.Padding.Vertical
+        wrap.Padding = New Padding(0, Math.Max(0, (innerH - _pathBox.PreferredHeight) \ 2), 6, 0)
+        wrap.Controls.Add(_pathBox)
+
+        ' Left, then the two right-docked buttons, then Fill last.
+        footer.Controls.Add(lbl)
+        footer.Controls.Add(bCopyPath)
+        footer.Controls.Add(bReveal)
+        footer.Controls.Add(wrap)
+        Return footer
+    End Function
+
+    Private Function FooterBtn(icon As String) As Button
+        Dim b As New Button() With {
+            .Text = icon, .Font = New Font("Segoe MDL2 Assets", 12),
+            .Dock = DockStyle.Right, .Width = 44,
+            .FlatStyle = FlatStyle.Flat, .ForeColor = Color.FromArgb(210, 210, 210),
+            .BackColor = INACTIVE_CLR, .Cursor = Cursors.Hand
+        }
+        b.Margin = New Padding(0)
+        b.FlatAppearance.BorderColor = Color.FromArgb(65, 65, 65)
+        b.FlatAppearance.MouseOverBackColor = Color.FromArgb(72, 72, 72)
+        Return b
+    End Function
+
+    Private Sub BtnCopyPath_Click(sender As Object, e As EventArgs)
+        If String.IsNullOrEmpty(_tempPath) Then Return
+        Clipboard.SetText(_tempPath)
+        Dim btn = CType(sender, Button)
+        btn.BackColor = Color.FromArgb(35, 110, 35)
+        Dim t As New Timer() With {.Interval = 1200}
+        AddHandler t.Tick, Sub()
+                               btn.BackColor = INACTIVE_CLR
+                               t.Stop() : t.Dispose()
+                           End Sub
+        t.Start()
+    End Sub
+
+    Private Sub BtnRevealPath_Click(sender As Object, e As EventArgs)
+        If String.IsNullOrEmpty(_tempPath) OrElse Not File.Exists(_tempPath) Then Return
+        Process.Start("explorer.exe", "/select,""" & _tempPath & """")
+    End Sub
+
+    ' Keeps the footer in sync with wherever the image currently lives on disk.
+    Private Sub SetSavedPath(p As String)
+        _tempPath = If(p, String.Empty)
+        If _pathBox Is Nothing Then Return
+        If String.IsNullOrEmpty(_tempPath) Then
+            _pathBox.Text = "(not saved to disk)"
+            _pathBox.ForeColor = Color.FromArgb(140, 140, 140)
+        Else
+            _pathBox.Text = _tempPath
+            _pathBox.ForeColor = Color.FromArgb(200, 200, 200)
+            _pathBox.Select(0, 0)
+        End If
     End Sub
 
     ' Text label button
@@ -665,10 +768,11 @@ Public Class PreviewForm
         Try
             Dim dir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Temp", "ScreenshotApp")
             Directory.CreateDirectory(dir)
-            _tempPath = Path.Combine(dir, "screenshot_" & DateTime.Now.ToString("yyyyMMdd_HHmmss") & ".png")
-            _bitmap.Save(_tempPath, Imaging.ImageFormat.Png)
+            Dim p = Path.Combine(dir, "screenshot_" & DateTime.Now.ToString("yyyyMMdd_HHmmss") & ".png")
+            _bitmap.Save(p, Imaging.ImageFormat.Png)
+            SetSavedPath(p)
         Catch
-            _tempPath = String.Empty
+            SetSavedPath(String.Empty)
         End Try
     End Sub
 
@@ -721,6 +825,7 @@ Public Class PreviewForm
                 Dim merged = GetMergedBitmap()
                 merged.Save(sfd.FileName, If(sfd.FilterIndex = 2, Imaging.ImageFormat.Jpeg, Imaging.ImageFormat.Png))
                 merged.Dispose()
+                SetSavedPath(sfd.FileName)
             End If
         End Using
     End Sub
