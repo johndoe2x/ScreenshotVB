@@ -38,6 +38,7 @@ A fast, lightweight **screen capture tool for Windows 10** — inspired by [Shot
 - **Drag & Drop** — drag the screenshot directly into WhatsApp, Discord, Slack, or any folder
 - **Open Folder** — opens the auto-save folder in Explorer
 - **Auto-save** — every screenshot is saved automatically to `%LocalAppData%\Temp\ScreenshotApp\`
+- **File path footer** — the exact save location is shown at the bottom of the preview window, with one-click copy and reveal-in-Explorer
 - **Pen** — freehand drawing with color presets and custom color picker
 - **Arrow** — click & drag to draw arrows with arrowheads
 - **Text** — click anywhere to place moveable text labels
@@ -83,6 +84,18 @@ A fast, lightweight **screen capture tool for Windows 10** — inspired by [Shot
 | **Undo** | Undo the last annotation action |
 | **Pin** | Keep preview window on top of all other windows |
 
+### File Path Footer
+
+The bar along the bottom of the preview window shows the full path of the file on disk:
+
+| Control | What it does |
+|--------|-------------|
+| **Path box** | Full path of the auto-saved PNG — click to select all, then Ctrl+C |
+| **Copy icon** | Copies the path to the clipboard (flashes green to confirm) |
+| **Folder icon** | Opens Explorer with this file selected |
+
+Use **Save** and the footer switches to the new location, so the path you copy is always the file you actually saved.
+
 ### Cancel
 - Press **Esc** during region select to cancel without capturing
 
@@ -94,6 +107,8 @@ Every screenshot is automatically saved to:
 ```
 C:\Users\<YourName>\AppData\Local\Temp\ScreenshotApp\
 ```
+
+The exact filename for the current screenshot is shown in the footer of the preview window — no need to go hunting for it in Explorer.
 
 ---
 

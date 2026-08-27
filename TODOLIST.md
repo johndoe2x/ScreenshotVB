@@ -2,8 +2,6 @@
 
 ## V2 — Priority Features
 
-- [ ] **Pin to screen** — keep screenshot floating on top of all windows for reference
-- [ ] **Basic annotations** — draw arrows, boxes, and add text before copying/saving
 - [ ] **Blur / redact tool** — blur sensitive info (passwords, emails) before sharing
 
 ## V2 — Medium Priority
@@ -30,3 +28,10 @@
 - [x] Save to custom folder (PNG/BMP/JPEG)
 - [x] Drag & drop into any app (WhatsApp, Discord, Slack, folders)
 - [x] Open temp folder in Explorer
+
+## Completed (V2)
+
+- [x] Pin to screen
+- [x] Basic annotations — pen, arrow, text, eraser, undo
+- [x] Move tool — reposition arrows and text labels after placing
+- [x] File path footer — show the save location, copy it, reveal the file in Explorer

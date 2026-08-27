@@ -79,3 +79,53 @@
   - Delay capture (countdown)
   - Window snap (click a window to capture it)
   - Recent screenshots in tray menu
+
+---
+
+## 2026-08-27
+
+### What was done
+
+- **Added: file path footer on the preview window**
+  - Problem: after capturing, there was no way to see *where* the screenshot was saved
+    without opening the Folder button and guessing which file was the newest
+  - New footer panel docked to the bottom of `PreviewForm` (48px tall):
+    - Read-only `TextBox` (`_pathBox`) showing the full path, Consolas 11
+    - Copy button (`ICO_COPY`) — `Clipboard.SetText(_tempPath)`, flashes green for 1.2s
+    - Reveal button (`ICO_FOLDER`) — `explorer.exe /select,"path"` so the file is highlighted,
+      unlike the toolbar Folder button which only opens the directory
+  - `SetSavedPath` is the single place `_tempPath` is written — keeps the textbox in sync
+    - `AutoSaveToTemp` calls it after the temp PNG is written
+    - `BtnSave_Click` calls it after a Save-dialog write, so the path follows the real file
+    - Falls back to a grey `(not saved to disk)` if the auto-save throws
+  - Path selects-all on both click and keyboard focus, so Tab → Ctrl+C works
+  - Window `ClientSize` grew by `FOOTER_H` to make room
+  - Docking order in `BuildUI` is toolbar → footer → canvas: docked children lay out in
+    z-order (index 0 first), so the Fill canvas must be added last or it eats the whole form
+  - Single-line TextBoxes ignore Height, so the box sits in a wrapper panel whose top
+    padding centres it against the taller buttons
+
+### Commits this session
+
+- `21f0984` — Add footer bar showing saved screenshot path
+
+### Notes / gotchas
+
+- **Git is not installed on this machine.** The only `git.exe` is the one bundled with
+  Visual Studio 18:
+  `C:\Program Files\Microsoft Visual Studio\18\Community\Common7\IDE\CommonExtensions\Microsoft\TeamFoundation\Team Explorer\Git\cmd`
+  It is not on PATH — prepend it before running git, or install Git for Windows.
+- Git identity was unset globally; set repo-locally to `johndoe2x <jrsolutionsceo@gmail.com>`
+  to match all previous commits.
+- `dotnet build` fails to overwrite `bin\...\ScreenshotVB.exe` while the app is running
+  (MSB3027, file locked). Exit via the tray icon before rebuilding.
+
+### Current State
+
+- GitHub repo up to date on `main`
+- Footer working; build clean (0 warnings, 0 errors)
+
+### Next Steps
+
+- Unchanged V2 roadmap (blur/redact, delay capture, window snap, recent screenshots)
+- Consider a new GitHub Release with the updated exe — v2.0.0 asset predates this change
